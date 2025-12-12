@@ -20,6 +20,8 @@ backend-assignment/
 │   └── main.py         # Entry Point
 ├── .env                # Secrets (Ignored by Git)
 ├── .gitignore
+├── Dockerfile          # Docker Image Configuration
+├── docker-compose.yml  # Container Orchestration
 ├── requirements.txt
 └── README.md
 ```
@@ -34,71 +36,71 @@ graph TD
     %% -- Client Layer --
     Client([Client / Frontend])
     
-    %% -- API Gateway / Application Layer --
-    subgraph "FastAPI Application Server"
-        Entry[API Router]
+    %% -- Docker Environment --
+    subgraph "Docker Host / Cloud Server"
         
-        subgraph "Security Layer"
-            AuthGuard[JWT Dependency Guard]
+        %% -- Container 1: API --
+        subgraph "Docker Container: API Service"
+            Entry[API Router]
+            
+            subgraph "Security Layer"
+                AuthGuard[JWT Dependency Guard]
+            end
+            
+            subgraph "Business Logic"
+                AuthService[Auth Service]
+                OrgService[Organization Service]
+            end
+            
+            subgraph "Data Access"
+                MasterConn[Master DB Connection]
+                TenantConn[Dynamic Tenant Connection]
+            end
         end
-        
-        subgraph "Business Logic Layer (Services)"
-            AuthService[Auth Service]
-            OrgService[Organization Service]
-        end
-        
-        subgraph "Data Access Layer"
-            MasterConn[Master DB Connection]
-            TenantConn[Dynamic Tenant Connection]
+
+        %% -- Container 2: Database --
+        subgraph "Docker Container: MongoDB"
+            direction TB
+            subgraph "Master Data"
+                Users[(Users Coll)]
+                Meta[(Metadata Coll)]
+            end
+            
+            subgraph "Tenant Data"
+                T1[(org_Tesla)]
+                T2[(org_SpaceX)]
+            end
         end
     end
 
-    %% -- Database Layer --
-    subgraph "Database Cluster (MongoDB)"
-        subgraph "Master Database"
-            Users[(Users Coll)]
-            Meta[(Metadata Coll)]
-        end
-        
-        subgraph "Tenant Databases (Dynamic)"
-            T1[(org_Tesla)]
-            T2[(org_SpaceX)]
-            T3[(org_...)]
-        end
-    end
-
-    %% -- Connections --
-    Client -->|HTTP Request| Entry
+    %% -- Networking --
+    Client -->|HTTP / Port 8000| Entry
     
-    Entry -->|Login/Public| AuthService
-    Entry -->|Protected Routes| AuthGuard
-    AuthGuard -->|If Valid| OrgService
+    Entry -->|Login| AuthService
+    Entry -->|Protect| AuthGuard
+    AuthGuard -->|Pass| OrgService
     
     AuthService --> MasterConn
     OrgService --> MasterConn
-    OrgService -->|Switch Context| TenantConn
+    OrgService --> TenantConn
     
-    MasterConn -->|Read/Write| Users
-    MasterConn -->|Read/Write| Meta
-    
-    TenantConn -->|CRUD Operations| T1
-    TenantConn -->|CRUD Operations| T2
-    TenantConn -->|CRUD Operations| T3
+    %% Docker Networking
+    MasterConn -.->|Docker Network / Port 27017| Users
+    MasterConn -.->|Docker Network / Port 27017| Meta
+    TenantConn -.->|Docker Network / Port 27017| T1
+    TenantConn -.->|Docker Network / Port 27017| T2
 
     %% -- Styling --
-    classDef client fill:#2d3436,stroke:#636e72,color:#fff;
-    classDef app fill:#f1f2f6,stroke:#dfe6e9,color:#2d3436;
-    classDef security fill:#d63031,stroke:#b71540,color:#fff;
-    classDef service fill:#0984e3,stroke:#00cec9,color:#fff;
-    classDef db fill:#6c5ce7,stroke:#a29bfe,color:#fff;
-    classDef tenant fill:#00b894,stroke:#55efc4,color:#fff;
+    classDef client fill:#2d3436,stroke:#636e72,color:#fff
+    classDef docker fill:#f1f2f6,stroke:#b2bec3,stroke-dasharray: 5 5,color:#2d3436
+    classDef container fill:#ffffff,stroke:#0984e3,stroke-width:2px,color:#2d3436
+    classDef db fill:#6c5ce7,stroke:#a29bfe,color:#fff
+    classDef security fill:#d63031,stroke:#fab1a0,color:#fff
 
-    class Client client;
-    class Entry,MasterConn,TenantConn app;
-    class AuthGuard security;
-    class AuthService,OrgService service;
-    class Users,Meta db;
-    class T1,T2,T3 tenant;
+    class Client client
+    class Entry,AuthService,OrgService,MasterConn,TenantConn container
+    class Users,Meta,T1,T2 db
+    class AuthGuard security
 ```
 
 ---
@@ -126,55 +128,56 @@ graph TD
 
 * **Framework:** Python 3.10+, FastAPI  
 * **Database:** MongoDB (via PyMongo)  
+* **Containerization:** Docker, Docker Compose
 * **Security:** PyJWT, Passlib, Bcrypt  
 * **Server:** Uvicorn (ASGI)
 
 ---
 
-## ⚙️ Setup Instructions
+## 🐳 Docker Setup (Recommended)
 
-Follow these steps to run the application locally.
+### Prerequisites
+* Docker Desktop installed and running
 
-### 1. Prerequisites
-* Python 3.10 or higher  
-* MongoDB installed locally OR a MongoDB Atlas connection string
+### Run the Application
+
+```bash
+docker-compose up --build
+```
+
+API: http://localhost:8000  
+MongoDB: localhost:27017
 
 ---
 
-### 2. Clone the Repository
+## ⚙️ Manual Local Setup (Alternative)
+
+### Prerequisites
+* Python 3.10+
+* MongoDB (local or Atlas)
+
+### Clone Repository
 
 ```bash
 git clone https://github.com/Gautham07s/org-management.git
 cd org-management
 ```
 
----
-
-### 3. Create Virtual Environment
+### Virtual Environment
 
 ```bash
 # Windows
 python -m venv venv
-.env\Scriptsctivate
-
-# Mac/Linux
-python3 -m venv venv
-source venv/bin/activate
+source venv/bin/activate  # Mac/Linux
 ```
 
----
-
-### 4. Install Dependencies
+### Install Dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
 
----
-
-### 5. Environment Configuration
-
-Create a `.env` file in the root directory:
+### Environment Variables
 
 ```env
 MONGO_URI=mongodb://localhost:27017
@@ -183,11 +186,7 @@ SECRET_KEY=replace_this_with_a_secure_random_string
 ALGORITHM=HS256
 ```
 
-If using MongoDB Atlas, replace `MONGO_URI` with your cluster connection string.
-
----
-
-### 6. Run the Application
+### Run Server
 
 ```bash
 uvicorn app.main:app --reload
@@ -197,6 +196,7 @@ The server will start at:
 **http://127.0.0.1:8000**
 
 ---
+
 
 ## 📚 API Documentation
 
