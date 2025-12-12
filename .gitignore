@@ -1,0 +1,13 @@
+# Security (NEVER upload this)
+.env
+
+# Virtual Environment (Too big, don't upload)
+venv/
+env/
+
+# Python compiled files (Junk)
+__pycache__/
+*.py[cod]
+
+# VS Code settings (Optional)
+.vscode/
