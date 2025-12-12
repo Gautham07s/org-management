@@ -1,0 +1,22 @@
+services:
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+    environment:
+      - MONGO_URI=mongodb://mongo_db:27017
+      - DB_NAME=master_db
+      - SECRET_KEY=supersecretkey123
+      - ALGORITHM=HS256
+    depends_on:
+      - mongo_db
+  mongo_db:
+    image: mongo:latest
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+volumes:
+  mongo_data:
